@@ -354,7 +354,8 @@ func (vg *Vangoh) CreateSigningString(r *http.Request) string {
 	buffer.WriteString(r.Header.Get("Content-MD5"))
 	buffer.WriteString(newline)
 
-	buffer.WriteString(r.Header.Get("Content-Type"))
+	// Split on ; to handle the annoying cases of computing HMAC with multipart/form-data boundaries
+	buffer.WriteString(strings.Split(r.Header.Get("Content-Type"), ";")[0])
 	buffer.WriteString(newline)
 
 	dateHeader := vg.getDateHeaderFromRequest(r)
