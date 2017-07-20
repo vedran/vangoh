@@ -95,6 +95,9 @@ type Vangoh struct {
 	// When true, Handler() includes specific error details in the response when
 	// denying incorrectly-authenticated requests.
 	debug bool
+
+	// A list of regexes for paths that should not check for HMAC auth
+	authExceptions []*regexp.Regexp
 }
 
 // Creates a new Vangoh instance with no secret providers.
@@ -158,6 +161,21 @@ func (vg *Vangoh) AddProvider(org string, skp secretProvider) error {
 		return errors.New("cannot add more than one keyProvider for the same org tag")
 	}
 	vg.providersByOrg[org] = skp
+	return nil
+}
+
+func (vg *Vangoh) AddAuthException(regex string) error {
+	if vg.authExceptions == nil {
+		vg.authExceptions = make([]*regexp.Regexp, 0)
+	}
+
+	compiled, err := regexp.Compile(regex)
+	if err != nil {
+		return err
+	}
+
+	vg.authExceptions = append(vg.authExceptions, compiled)
+
 	return nil
 }
 
@@ -251,6 +269,15 @@ func (vg *Vangoh) getDateHeaderFromRequest(r *http.Request) string {
 // Checks a request for proper authentication details, returning the relevent
 // error if the request fails this check or nil if the request passes.
 func (vg *Vangoh) AuthenticateRequest(r *http.Request) *AuthenticationError {
+	if vg.authExceptions != nil {
+		for i := range vg.authExceptions {
+			match := vg.authExceptions[i].MatchString(r.URL.Path)
+			if match {
+				return nil // skip auth for the exceptions
+			}
+		}
+	}
+
 	// Parse the ORG, KEY, and SIGNATURE out of the Authorization header.
 	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
 	if authHeader == "" {
